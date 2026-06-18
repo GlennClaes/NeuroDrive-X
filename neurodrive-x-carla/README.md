@@ -1,158 +1,200 @@
 # NeuroDrive X: CARLA Autonomous Driving Lab
 
-NeuroDrive X is a professional autonomous-driving research platform built around CARLA Simulator, Gymnasium, Stable-Baselines3 PPO, computer vision, analytics, Docker, and a FastAPI dashboard. It trains an ego vehicle to drive through real CARLA towns using RGB camera, semantic camera, LiDAR, collision, lane-invasion, GNSS, and IMU sensors.
+NeuroDrive X is a Docker-first autonomous-driving research platform using CARLA Simulator, Python 3.11, Stable-Baselines3 PPO, PyTorch, Gymnasium, Ultralytics YOLO, LiDAR point-cloud processing, FastAPI, and a React + Vite dashboard.
+
+Everything can run through Docker Compose: CARLA, training, evaluation, live demo, backend dashboard, React frontend, and tests.
+
+## What Runs In Docker
+
+| Workflow | Service | Dockerfile |
+| --- | --- | --- |
+| CARLA simulator | `carla` | `carlasim/carla:latest` |
+| PPO training / evaluation / demo / tests | `trainer`, `evaluator`, `demo`, `tests` | `docker/Dockerfile.training` |
+| Production dashboard | `dashboard` | `docker/Dockerfile.dashboard` |
+| React development dashboard | `frontend-dev` | `docker/Dockerfile.frontend` |
+| Default dashboard image | manual `docker build -f docker/Dockerfile` | `docker/Dockerfile` |
 
 ## Features
 
-- CARLA-first simulation with Town01, Town03, and Town05 support.
-- Ego vehicle spawning plus Traffic Manager vehicles and pedestrian controllers.
-- Weather presets including ClearNoon, WetCloudyNoon, HardRainNoon, ClearNight, WetNight, and SoftRainSunset.
-- Custom Gymnasium environment with discrete driving actions: accelerate, brake, steer left, steer right, keep lane.
-- PPO training with Stable-Baselines3 MultiInputPolicy.
-- Dense reward shaping for progress, lane keeping, waypoint completion, safe distance, red-light behavior, smooth driving, and route success.
-- Penalties for collisions, offroad driving, lane invasions, red-light violations, wrong-way driving, hard steering, and unexplained idling.
-- OpenCV lane detection, camera normalization, LiDAR sector preprocessing, semantic object-detection fallback, and swappable DNN object detector.
-- FastAPI dashboard with live reward, episode, speed, collisions, lane invasions, distance, success rate, leaderboard, and plots.
-- JSONL/CSV metrics logging, replay step logs, automatic plot generation, headless training, emergency braking, rain mode, night mode, and bird's-eye LiDAR utilities.
+- CARLA towns Town01, Town03, and Town05.
+- Ego vehicle, Traffic Manager vehicles, pedestrians, and multi-agent traffic behavior.
+- RGB camera, semantic camera, LiDAR, collision, lane invasion, GNSS, and IMU sensors.
+- PPO with a custom multi-modal CNN feature extractor for RGB, bird's-eye-view maps, LiDAR, and scalar vehicle state.
+- Ultralytics YOLO object detection with CARLA semantic segmentation fallback.
+- LiDAR filtering, clustering, sector distances, and BEV occupancy maps.
+- A* route planning over CARLA waypoint graphs.
+- FastAPI API plus React + Vite + TypeScript dashboard.
+- JSONL/CSV metrics, replay logs, training plots, leaderboard, emergency braking, rain mode, night mode, and headless training.
 
-## Architecture
+## Project Structure
 
 ```text
 neurodrive-x-carla/
-├── ai/                 PPO training, evaluation, live inference, rewards
-├── carla_env/          Gymnasium environment and CARLA actor managers
-├── perception/         Camera, lane, object, and LiDAR processing
-├── dashboard/          FastAPI app, API routes, templates, static assets
-├── analytics/          Metrics logging, plots, leaderboard
-├── configs/            CARLA, training, and dashboard YAML configs
-├── scripts/            Setup, CARLA start, training, evaluation, demo scripts
-├── docker/             Dockerfile and Compose stack
-└── tests/              Unit tests for reward, metrics, and LiDAR logic
+|-- ai/                 PPO training, evaluation, inference, rewards, policies
+|-- carla_env/          Gymnasium environment and CARLA actor managers
+|-- perception/         Camera, YOLO, lane, BEV, and LiDAR processing
+|-- dashboard/          FastAPI backend and React frontend
+|-- analytics/          Metrics logging, plots, leaderboard helpers
+|-- configs/            CARLA, training, and dashboard YAML configs
+|-- docker/             Dockerfiles, Compose stack, Docker entrypoints
+|-- scripts/            Docker-first PowerShell/Bash scripts
+`-- tests/              Offline unit tests
 ```
 
-## Installation
+## Requirements
 
-```bash
-cd neurodrive-x-carla
-chmod +x scripts/*.sh
-./scripts/setup.sh
+- Docker Desktop or Docker Engine with Compose V2.
+- NVIDIA GPU and current drivers strongly recommended for CARLA.
+- On Windows: WSL2-backed Docker Desktop is recommended.
+- PowerShell 7+ recommended, Windows PowerShell also works for the provided scripts.
+
+## Docker Quick Start On Windows
+
+From PowerShell:
+
+```powershell
+cd C:\Projecten\NeuroDrive-X\neurodrive-x-carla
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+.\scripts\docker-build-all.ps1
+.\scripts\docker-start-simulator.ps1
+.\scripts\docker-start-dashboard.ps1 -Build
 ```
 
-CARLA's Python API must match the CARLA server version. If you use an extracted CARLA release instead of the PyPI package, set:
+Open:
 
-```bash
-export CARLA_PYTHON_EGG=/path/to/CARLA/PythonAPI/carla/dist/carla-*.egg
-export PYTHONPATH="$CARLA_PYTHON_EGG:$PYTHONPATH"
+```text
+http://localhost:8080
 ```
 
-## CARLA Setup
+Run training:
 
-Install CARLA 0.9.15 or a compatible server, then start it:
-
-```bash
-export CARLA_ROOT=$HOME/CARLA_0.9.15
-./scripts/start_carla.sh
+```powershell
+.\scripts\docker-run-training.ps1 -Timesteps 250000
 ```
 
-For an already running server, configure `configs/carla.yaml`:
+Run evaluation:
 
-```yaml
-server:
-  host: "localhost"
-  port: 2000
+```powershell
+.\scripts\docker-run-evaluation.ps1 -Model ai/models/ppo_neurodrive_x.zip -Episodes 5
 ```
 
-## Training
+Run live demo:
 
-```bash
-./scripts/train.sh --headless --timesteps 250000
+```powershell
+.\scripts\docker-run-demo.ps1 -Model ai/models/ppo_neurodrive_x.zip -Town Town05 -Weather ClearNoon
 ```
 
-Force a town or weather preset:
+Run tests:
 
-```bash
-./scripts/train.sh --town Town03 --weather HardRainNoon
+```powershell
+.\scripts\docker-run-tests.ps1
 ```
 
-The trained model is saved to `ai/models/ppo_neurodrive_x.zip`. Metrics are written to `analytics/training_logs/metrics.jsonl` and `analytics/training_logs/metrics.csv`.
+Stop everything:
 
-## Evaluation
-
-```bash
-./scripts/evaluate.sh --model ai/models/ppo_neurodrive_x.zip --episodes 5 --town Town05 --weather WetCloudyNoon
+```powershell
+.\scripts\docker-stop-all.ps1
 ```
 
-The evaluation report is saved to `analytics/training_logs/evaluation_report.json`.
+## Docker Scripts
 
-## Demo
+PowerShell scripts:
 
-```bash
-./scripts/run_demo.sh --model ai/models/ppo_neurodrive_x.zip --town Town05 --weather ClearNoon
+- `scripts/docker-build-all.ps1`
+- `scripts/docker-start-simulator.ps1`
+- `scripts/docker-start-dashboard.ps1`
+- `scripts/docker-run-training.ps1`
+- `scripts/docker-run-evaluation.ps1`
+- `scripts/docker-run-demo.ps1`
+- `scripts/docker-run-tests.ps1`
+- `scripts/docker-show-logs.ps1`
+- `scripts/docker-stop-all.ps1`
+
+Bash equivalents are also available with the same names and `.sh` extensions.
+
+## Compose Commands
+
+The scripts wrap these Compose commands:
+
+```powershell
+docker compose -f docker/docker-compose.yml --profile simulator up -d carla
+docker compose -f docker/docker-compose.yml --profile dashboard up -d --build dashboard
+docker compose -f docker/docker-compose.yml --profile train up --build --abort-on-container-exit trainer
+docker compose -f docker/docker-compose.yml --profile evaluate up --build --abort-on-container-exit evaluator
+docker compose -f docker/docker-compose.yml --profile demo up --build --abort-on-container-exit demo
+docker compose -f docker/docker-compose.yml --profile test up --build --abort-on-container-exit tests
 ```
 
-Emergency braking is enabled in `configs/carla.yaml` and overrides unsafe policy actions near front obstacles or red lights.
+To run the React dashboard in Vite dev mode entirely in Docker:
 
-## Dashboard
-
-```bash
-source .venv/bin/activate
-python dashboard/app.py --host 0.0.0.0 --port 8080
+```powershell
+.\scripts\docker-start-dashboard.ps1 -WithFrontendDev -Build
 ```
 
-Open `http://localhost:8080` to view live metrics, training curves, generated plots, and leaderboard entries.
+Open:
 
-## Docker Usage
-
-Run the dashboard against a CARLA server on the host:
-
-```bash
-cd docker
-docker compose up dashboard
+```text
+http://localhost:5173
 ```
 
-Run headless training:
+## Data Persistence
 
-```bash
-cd docker
-docker compose --profile training up training
+The Compose stack bind-mounts these host directories:
+
+```text
+analytics/training_logs -> /app/analytics/training_logs
+ai/models               -> /app/ai/models
 ```
 
-Optionally start a CARLA container:
+Training metrics, plots, replay logs, checkpoints, and final PPO models remain available on your host after containers stop.
 
-```bash
-cd docker
-docker compose --profile simulator up carla
+## CARLA Docker Notes
+
+The simulator service uses:
+
+```text
+carlasim/carla:latest
 ```
+
+It exposes ports `2000-2002`, runs headless with `-RenderOffScreen`, and is reachable inside Compose as:
+
+```text
+CARLA_HOST=carla
+CARLA_PORT=2000
+```
+
+For CARLA source and simulator documentation, see [carla-simulator/carla](https://github.com/carla-simulator/carla).
 
 ## Configuration
 
-- `configs/carla.yaml`: server, towns, synchronous mode, sensors, traffic, weather, route planning, safety, replay logging.
-- `configs/training.yaml`: PPO hyperparameters, reward coefficients, logging paths, evaluation defaults.
-- `configs/dashboard.yaml`: dashboard host, port, metric paths, refresh rate, leaderboard rules.
+- `configs/carla.yaml`: server, towns, sensors, perception, traffic, weather, route planning, safety, replay logging.
+- `configs/training.yaml`: PPO hyperparameters, custom CNN feature extractor, reward coefficients, logging, evaluation defaults.
+- `configs/dashboard.yaml`: dashboard API host/port, metric paths, plot paths, refresh behavior.
 
-## Testing
+## Optional Local Development
 
-```bash
-cd neurodrive-x-carla
-pytest -q
+Docker is the main workflow. Local scripts remain available for quick debugging:
+
+```powershell
+.\scripts\setup.ps1 -InstallFrontend
+.\scripts\dashboard.ps1
+.\scripts\frontend.ps1 -Install
 ```
-
-The included tests do not require a running CARLA server.
 
 ## Troubleshooting
 
-- `ModuleNotFoundError: carla`: install the CARLA Python API matching the server or set `PYTHONPATH` to the CARLA egg.
-- `timeout while connecting to CARLA`: verify the server is running and `configs/carla.yaml` points to the correct host/port.
-- `failed to spawn ego vehicle`: another actor may occupy the spawn point; retry, lower traffic count, or switch town.
-- Low FPS in training: use `--headless`, `no_rendering_mode`, lower traffic count, and `Low` CARLA quality.
-- Docker cannot reach CARLA: set `CARLA_HOST=host.docker.internal` on Desktop Docker, or use the host gateway IP on Linux.
+- CARLA does not start: verify Docker Desktop GPU support and NVIDIA drivers.
+- Training cannot connect to CARLA: run `.\scripts\docker-show-logs.ps1 carla` and check that port `2000` is ready.
+- Docker Compose says GPU support is unavailable: install NVIDIA Container Toolkit on Linux, or enable GPU support in Docker Desktop/WSL2 on Windows.
+- YOLO weights download fails: provide a local weights file or let the semantic fallback run; the pipeline remains functional.
+- Dashboard is empty: run training/evaluation first, or check `analytics/training_logs`.
+- Build is slow: the training image installs PyTorch, SB3, OpenCV, Ultralytics, and CARLA client dependencies.
 
 ## Future Improvements
 
-- Add imitation-learning warm starts from CARLA expert routes.
-- Replace the semantic object-detection fallback with an ONNX detector trained on CARLA or BDD100K.
-- Add vectorized multi-server CARLA training.
-- Add route curriculum learning and scenario-based evaluation.
-- Export replay logs to video with overlays.
-- Integrate experiment tracking with MLflow or Weights & Biases.
+- Vectorized CARLA training across multiple simulator containers.
+- TensorRT/ONNX YOLO inference image for faster perception.
+- Scenario-based route curricula and leaderboard benchmarks.
+- Replay-to-video export with camera, BEV, and reward overlays.
+- MLflow or Weights & Biases experiment tracking.
 

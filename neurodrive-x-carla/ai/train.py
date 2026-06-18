@@ -23,6 +23,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from analytics.metrics import EpisodeMetrics, TrainingMetricsLogger
 from analytics.plots import generate_all_plots
+from ai.policies import NeuroDriveCNNExtractor
 from carla_env.environment import CarlaDrivingEnv
 
 LOGGER = logging.getLogger("neurodrive.train")
@@ -70,6 +71,7 @@ class EpisodeMetricsCallback(BaseCallback):
                     success=bool(info.get("success", False)),
                     town=str(info.get("town", "unknown")),
                     weather=str(info.get("weather", "unknown")),
+                    detection_count=int(info.get("detection_count", 0)),
                     route_completed_pct=float(info.get("route_completed_pct", 0.0)),
                 )
                 self.metrics_logger.log_episode(metric)
@@ -150,6 +152,7 @@ def train(args: argparse.Namespace) -> Path:
         LOGGER.info("Resuming PPO model from %s", model_path)
         model = PPO.load(model_path, env=env, device=training_config.get("device", "auto"))
     else:
+        policy_kwargs = _policy_kwargs(algorithm_config)
         model = PPO(
             policy=algorithm_config.get("policy", "MultiInputPolicy"),
             env=env,
@@ -164,6 +167,7 @@ def train(args: argparse.Namespace) -> Path:
             vf_coef=float(algorithm_config.get("vf_coef", 0.5)),
             max_grad_norm=float(algorithm_config.get("max_grad_norm", 0.5)),
             tensorboard_log=str(tensorboard_dir),
+            policy_kwargs=policy_kwargs,
             seed=seed,
             device=training_config.get("device", "auto"),
             verbose=1,
@@ -226,6 +230,19 @@ def _load_yaml(path: Path) -> dict[str, Any]:
 def _resolve(path: str | Path) -> Path:
     candidate = Path(path)
     return candidate if candidate.is_absolute() else PROJECT_ROOT / candidate
+
+
+def _policy_kwargs(algorithm_config: dict[str, Any]) -> dict[str, Any]:
+    extractor = str(algorithm_config.get("feature_extractor", "NeuroDriveCNN"))
+    if extractor.lower() not in {"neurodrivecnn", "neurodrivecnnextractor"}:
+        return {}
+    return {
+        "features_extractor_class": NeuroDriveCNNExtractor,
+        "features_extractor_kwargs": {
+            "features_dim": int(algorithm_config.get("features_dim", 384)),
+        },
+        "normalize_images": False,
+    }
 
 
 def _relative_to_project(path: Path) -> Path:

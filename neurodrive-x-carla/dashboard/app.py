@@ -1,4 +1,4 @@
-"""FastAPI dashboard application for NeuroDrive X."""
+"""FastAPI dashboard backend for the NeuroDrive X React frontend."""
 
 from __future__ import annotations
 
@@ -8,10 +8,9 @@ from pathlib import Path
 import sys
 from typing import Any
 
-from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse
+from fastapi import FastAPI
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
 import uvicorn
 import yaml
 
@@ -30,24 +29,37 @@ def create_app(config_path: str | Path = PROJECT_ROOT / "configs/dashboard.yaml"
     config = _load_yaml(Path(config_path))
     app = FastAPI(title="NeuroDrive X Dashboard", version="1.0.0")
 
-    static_dir = PROJECT_ROOT / "dashboard/static"
-    template_dir = PROJECT_ROOT / "dashboard/templates"
+    legacy_static_dir = PROJECT_ROOT / "dashboard/static"
+    frontend_dist = PROJECT_ROOT / "dashboard/frontend/dist"
+    frontend_assets = frontend_dist / "assets"
     plot_dir = PROJECT_ROOT / config.get("data", {}).get("plot_dir", "analytics/training_logs/plots")
     plot_dir.mkdir(parents=True, exist_ok=True)
 
-    app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+    if legacy_static_dir.exists():
+        app.mount("/static", StaticFiles(directory=str(legacy_static_dir)), name="legacy-static")
+    if frontend_assets.exists():
+        app.mount("/assets", StaticFiles(directory=str(frontend_assets)), name="frontend-assets")
     app.mount("/plots", StaticFiles(directory=str(plot_dir)), name="plots")
     app.include_router(create_api_router(PROJECT_ROOT, config))
-    templates = Jinja2Templates(directory=str(template_dir))
 
-    @app.get("/", response_class=HTMLResponse)
-    async def index(request: Request) -> HTMLResponse:
-        return templates.TemplateResponse(
-            "index.html",
+    @app.get("/{path:path}", include_in_schema=False)
+    async def react_app(path: str = "") -> FileResponse | JSONResponse:
+        """Serve the built React app, or explain how to start the dev UI."""
+
+        index_file = frontend_dist / "index.html"
+        requested_file = frontend_dist / path
+        if path and requested_file.exists() and requested_file.is_file():
+            return FileResponse(requested_file)
+        if index_file.exists():
+            return FileResponse(index_file)
+        return JSONResponse(
             {
-                "request": request,
-                "refresh_seconds": int(config.get("data", {}).get("refresh_seconds", 2)),
-            },
+                "service": "NeuroDrive X Dashboard API",
+                "status": "frontend_not_built",
+                "api_docs": "/docs",
+                "frontend_dev": "Run scripts\\frontend.ps1, then open http://localhost:5173",
+                "frontend_build": "Run npm install and npm run build in dashboard/frontend",
+            }
         )
 
     return app
@@ -87,4 +99,3 @@ def _load_yaml(path: Path) -> dict[str, Any]:
 
 if __name__ == "__main__":
     main()
-

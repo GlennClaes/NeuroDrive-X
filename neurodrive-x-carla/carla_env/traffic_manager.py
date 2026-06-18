@@ -99,6 +99,7 @@ class CarlaTrafficManager:
             if actor is None:
                 continue
             actor.set_autopilot(True, tm_port)
+            self._configure_vehicle_behavior(actor)
             self.actors.vehicles.append(actor)
 
     def _spawn_pedestrians(self, world: Any, rng: random.Random) -> None:
@@ -135,8 +136,35 @@ class CarlaTrafficManager:
                 controller.go_to_location(destination)
             controller.set_max_speed(2.8 if rng.random() < running_fraction else 1.4)
 
+    def _configure_vehicle_behavior(self, actor: Any) -> None:
+        """Apply per-vehicle behavioral variety for multi-agent traffic."""
+
+        if self.traffic_manager is None:
+            return
+        multi_agent = self.config.get("multi_agent", {})
+        if not multi_agent.get("enabled", True):
+            return
+        try:
+            self.traffic_manager.ignore_lights_percentage(
+                actor,
+                float(multi_agent.get("ignore_lights_percentage", 2.0)),
+            )
+            self.traffic_manager.random_left_lanechange_percentage(
+                actor,
+                float(multi_agent.get("random_left_lane_change_percentage", 8.0)),
+            )
+            self.traffic_manager.random_right_lanechange_percentage(
+                actor,
+                float(multi_agent.get("random_right_lane_change_percentage", 8.0)),
+            )
+            self.traffic_manager.vehicle_percentage_speed_difference(
+                actor,
+                float(multi_agent.get("aggressive_speed_difference_percentage", -15.0)),
+            )
+        except RuntimeError:
+            LOGGER.debug("Could not configure multi-agent traffic behavior for actor %s.", actor.id, exc_info=True)
+
 
 def _require_carla() -> None:
     if carla is None:
         raise RuntimeError("CARLA Python API is required for traffic management.")
-

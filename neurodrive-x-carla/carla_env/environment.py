@@ -22,7 +22,9 @@ from carla_env.traffic_manager import CarlaTrafficManager
 from carla_env.vehicle_manager import VehicleManager
 from carla_env.weather_manager import WeatherManager
 from perception.camera_processing import resize_and_normalize_rgb
+from perception.bird_eye_view import render_bird_eye_view
 from perception.lidar_processing import LidarSummary, preprocess_lidar
+from perception.object_detection import Detection, ObjectDetector
 
 try:
     import carla
@@ -81,10 +83,13 @@ class CarlaDrivingEnv(gym.Env):
         lidar_sectors = int(self.carla_config["sensors"]["lidar"].get("sectors", 64))
         camera = self.carla_config["sensors"]["camera"]
         camera_shape = (3, int(camera.get("output_height", 84)), int(camera.get("output_width", 84)))
+        bev_config = self.carla_config.get("perception", {}).get("bird_eye_view", {})
+        bev_size = int(bev_config.get("size", 128))
         self.action_space = spaces.Discrete(5)
         self.observation_space = spaces.Dict(
             {
                 "camera_features": spaces.Box(0.0, 1.0, shape=camera_shape, dtype=np.float32),
+                "bev_map": spaces.Box(0.0, 1.0, shape=(3, bev_size, bev_size), dtype=np.float32),
                 "lidar_distances": spaces.Box(0.0, 1.0, shape=(lidar_sectors,), dtype=np.float32),
                 "vehicle_speed": spaces.Box(0.0, 240.0, shape=(1,), dtype=np.float32),
                 "steering_angle": spaces.Box(-1.0, 1.0, shape=(1,), dtype=np.float32),
@@ -103,6 +108,10 @@ class CarlaDrivingEnv(gym.Env):
         self.traffic_manager = CarlaTrafficManager(self.carla_config["traffic"])
         self.weather_manager = WeatherManager(self.carla_config["weather"])
         self.reward_config = RewardConfig.from_mapping(self.training_config.get("reward", {}))
+        detection_config = self.carla_config.get("perception", {}).get("object_detection", {})
+        self.object_detector = ObjectDetector.from_config(detection_config)
+        self.detection_interval = max(1, int(detection_config.get("inference_interval_steps", 5)))
+        self.last_detections: list[Detection] = []
 
         self.episode = 0
         self.steps = 0
@@ -293,6 +302,7 @@ class CarlaDrivingEnv(gym.Env):
         distance = self._last_route_status.distance_to_waypoint_m
         return {
             "camera_features": camera_features.astype(np.float32),
+            "bev_map": self._build_bev_map(),
             "lidar_distances": self._last_lidar_summary.sector_distances.astype(np.float32),
             "vehicle_speed": np.array([speed], dtype=np.float32),
             "steering_angle": np.array([self.vehicle_manager.last_control.steer], dtype=np.float32),
@@ -316,6 +326,7 @@ class CarlaDrivingEnv(gym.Env):
 
         if self.carla_config.get("debug", {}).get("draw_route", True):
             self.route_planner.draw_debug_route(self.world, life_time=0.2)
+        self._update_object_detections()
 
         return StepDiagnostics(
             speed_kmh=self.vehicle_manager.get_speed_kmh(),
@@ -377,6 +388,8 @@ class CarlaDrivingEnv(gym.Env):
             "distance_driven_m": self.distance_driven_m,
             "route_completed_pct": self._last_route_status.route_completed_pct,
             "success": bool(self._last_route_status.route_completed),
+            "detections": [detection.__dict__ for detection in self.last_detections[:20]],
+            "detection_count": len(self.last_detections),
             "town": self.current_town,
             "weather": self.current_weather,
             "done": done,
@@ -429,6 +442,34 @@ class CarlaDrivingEnv(gym.Env):
         }
         self._replay_handle.write(json.dumps(payload) + "\n")
         self._replay_handle.flush()
+
+    def _build_bev_map(self) -> np.ndarray:
+        perception_config = self.carla_config.get("perception", {})
+        bev_config = perception_config.get("bird_eye_view", {})
+        size = int(bev_config.get("size", 128))
+        if not bev_config.get("enabled", True):
+            return np.zeros((3, size, size), dtype=np.float32)
+        ego_transform = self.vehicle_manager.get_transform()
+        route_locations = self.route_planner.get_upcoming_locations(limit=100)
+        return render_bird_eye_view(
+            self.sensor_manager.snapshot.lidar_points,
+            route_locations=route_locations,
+            ego_transform=ego_transform,
+            size=size,
+            meters=float(bev_config.get("meters", 60.0)),
+            include_route=bool(bev_config.get("include_route", True)),
+        )
+
+    def _update_object_detections(self) -> None:
+        if self.steps % self.detection_interval != 0:
+            return
+        try:
+            self.last_detections = self.object_detector.detect(
+                self.sensor_manager.snapshot.rgb,
+                self.sensor_manager.snapshot.semantic,
+            )
+        except Exception:
+            LOGGER.debug("Object detection failed for this frame.", exc_info=True)
 
 
 def _load_yaml(path: Path) -> dict[str, Any]:

@@ -28,6 +28,7 @@ class EpisodeMetrics:
     success: bool
     town: str
     weather: str
+    detection_count: int = 0
     model_name: str = "ppo_neurodrive_x"
     route_completed_pct: float = 0.0
     average_reward_100: float = 0.0
@@ -154,4 +155,3 @@ def build_leaderboard(metrics: Iterable[EpisodeMetrics], min_episodes: int = 3) 
         )
     leaderboard.sort(key=lambda row: (row["success_rate"], row["average_reward"]), reverse=True)
     return leaderboard
-

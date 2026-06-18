@@ -1,45 +1,159 @@
+name: neurodrive-x
+
+x-app-env: &app-env
+  PYTHONPATH: /app
+  CARLA_HOST: carla
+  CARLA_PORT: "2000"
+  CARLA_WAIT_TIMEOUT: "240"
+  NVIDIA_VISIBLE_DEVICES: ${NVIDIA_VISIBLE_DEVICES:-all}
+  NVIDIA_DRIVER_CAPABILITIES: ${NVIDIA_DRIVER_CAPABILITIES:-all}
+
+x-app-volumes: &app-volumes
+  - ../analytics/training_logs:/app/analytics/training_logs
+  - ../ai/models:/app/ai/models
+
 services:
+  carla:
+    image: carlasim/carla:${CARLA_IMAGE_TAG:-latest}
+    container_name: neurodrive-x-carla
+    command: >
+      /bin/bash -lc "./CarlaUE4.sh -RenderOffScreen -quality-level=${CARLA_QUALITY_LEVEL:-Low} -carla-rpc-port=2000"
+    ports:
+      - "${CARLA_PORT_RANGE:-2000-2002}:2000-2002"
+    environment:
+      SDL_VIDEODRIVER: offscreen
+      NVIDIA_VISIBLE_DEVICES: ${NVIDIA_VISIBLE_DEVICES:-all}
+      NVIDIA_DRIVER_CAPABILITIES: ${NVIDIA_DRIVER_CAPABILITIES:-all}
+    shm_size: "2gb"
+    privileged: true
+    gpus: all
+    profiles:
+      - simulator
+      - train
+      - evaluate
+      - demo
+      - all
+    networks:
+      - neurodrive
+
   dashboard:
     build:
       context: ..
-      dockerfile: docker/Dockerfile
+      dockerfile: docker/Dockerfile.dashboard
+    image: neurodrive-x/dashboard:latest
     container_name: neurodrive-x-dashboard
-    working_dir: /app
-    command: python dashboard/app.py --host 0.0.0.0 --port 8080
-    ports:
-      - "8080:8080"
     environment:
-      CARLA_HOST: ${CARLA_HOST:-host.docker.internal}
-      CARLA_PORT: ${CARLA_PORT:-2000}
       PYTHONPATH: /app
+    ports:
+      - "${DASHBOARD_PORT:-8080}:8080"
     volumes:
       - ../analytics/training_logs:/app/analytics/training_logs
+    profiles:
+      - dashboard
+      - frontend
+      - all
+    networks:
+      - neurodrive
 
-  training:
+  frontend-dev:
     build:
       context: ..
-      dockerfile: docker/Dockerfile
-    container_name: neurodrive-x-training
-    working_dir: /app
-    command: python ai/train.py --headless
+      dockerfile: docker/Dockerfile.frontend
+    image: neurodrive-x/frontend-dev:latest
+    container_name: neurodrive-x-frontend-dev
     environment:
-      CARLA_HOST: ${CARLA_HOST:-host.docker.internal}
-      CARLA_PORT: ${CARLA_PORT:-2000}
-      PYTHONPATH: /app
-    volumes:
-      - ../analytics/training_logs:/app/analytics/training_logs
-      - ../ai/models:/app/ai/models
-    profiles:
-      - training
-
-  carla:
-    image: carlasim/carla:0.9.15
-    container_name: neurodrive-x-carla-server
-    command: /bin/bash CarlaUE4.sh -RenderOffScreen -quality-level=Low -carla-rpc-port=2000
+      VITE_API_PROXY_TARGET: http://dashboard:8080
     ports:
-      - "2000-2002:2000-2002"
-    environment:
-      SDL_VIDEODRIVER: offscreen
+      - "${FRONTEND_PORT:-5173}:5173"
+    volumes:
+      - ../dashboard/frontend:/frontend
+      - frontend_node_modules:/frontend/node_modules
+    depends_on:
+      - dashboard
     profiles:
-      - simulator
+      - frontend
+      - all
+    networks:
+      - neurodrive
 
+  trainer:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.training
+    image: neurodrive-x/training:latest
+    container_name: neurodrive-x-trainer
+    environment:
+      <<: *app-env
+    command: >
+      /bin/sh -lc "python docker/entrypoints/wait_for_carla.py &&
+      python ai/train.py --headless $${TRAIN_ARGS:-}"
+    volumes: *app-volumes
+    depends_on:
+      - carla
+    profiles:
+      - train
+      - all
+    networks:
+      - neurodrive
+
+  evaluator:
+    image: neurodrive-x/training:latest
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.training
+    container_name: neurodrive-x-evaluator
+    environment:
+      <<: *app-env
+    command: >
+      /bin/sh -lc "python docker/entrypoints/wait_for_carla.py &&
+      python ai/evaluate.py --headless $${EVAL_ARGS:-}"
+    volumes: *app-volumes
+    depends_on:
+      - carla
+    profiles:
+      - evaluate
+      - all
+    networks:
+      - neurodrive
+
+  demo:
+    image: neurodrive-x/training:latest
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.training
+    container_name: neurodrive-x-demo
+    environment:
+      <<: *app-env
+    command: >
+      /bin/sh -lc "python docker/entrypoints/wait_for_carla.py &&
+      python ai/inference.py --headless $${DEMO_ARGS:-}"
+    volumes: *app-volumes
+    depends_on:
+      - carla
+    profiles:
+      - demo
+      - all
+    networks:
+      - neurodrive
+
+  tests:
+    image: neurodrive-x/training:latest
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.training
+    container_name: neurodrive-x-tests
+    environment:
+      PYTHONPATH: /app
+    command: python -B -m pytest -q -p no:cacheprovider tests
+    profiles:
+      - test
+      - all
+    networks:
+      - neurodrive
+
+networks:
+  neurodrive:
+    driver: bridge
+
+volumes:
+  frontend_node_modules:

@@ -70,6 +70,7 @@ def evaluate(args: argparse.Namespace) -> dict[str, Any]:
             success=bool(info.get("success", False)),
             town=str(info.get("town", args.town or "unknown")),
             weather=str(info.get("weather", args.weather or "unknown")),
+            detection_count=int(info.get("detection_count", 0)),
             route_completed_pct=float(info.get("route_completed_pct", 0.0)),
         )
         metrics.append(metric)
@@ -124,4 +125,3 @@ def _relative_to_project(path: Path) -> Path:
 
 if __name__ == "__main__":
     main()
-

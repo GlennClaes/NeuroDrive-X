@@ -96,6 +96,7 @@ perception:
     confidence_threshold: 0.35
     image_size: 640
     device: "auto"
+    inference_interval_steps: 5
     enabled_classes:
       - "person"
       - "bicycle"

@@ -7,6 +7,11 @@ tests/.tmp*/
 .ruff_cache/
 .env
 .env.carla
+.env.carla.ps1
+
+dashboard/frontend/node_modules/
+dashboard/frontend/dist/
+dashboard/frontend/.vite/
 
 ai/models/*.zip
 ai/models/checkpoints/

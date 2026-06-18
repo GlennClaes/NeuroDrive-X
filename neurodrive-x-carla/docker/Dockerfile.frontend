@@ -1,0 +1,15 @@
+FROM node:20-slim
+
+ENV NODE_ENV=development
+
+WORKDIR /frontend
+
+COPY dashboard/frontend/package.json dashboard/frontend/tsconfig.json dashboard/frontend/tsconfig.node.json dashboard/frontend/vite.config.ts ./
+COPY dashboard/frontend/index.html ./index.html
+COPY dashboard/frontend/src ./src
+
+RUN npm install
+
+EXPOSE 5173
+CMD ["npm", "run", "dev"]
+
