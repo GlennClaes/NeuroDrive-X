@@ -1,0 +1,16 @@
+server:
+  host: "0.0.0.0"
+  port: 8080
+  reload: false
+
+data:
+  metrics_jsonl: "analytics/training_logs/metrics.jsonl"
+  metrics_csv: "analytics/training_logs/metrics.csv"
+  dashboard_state: "analytics/training_logs/dashboard_state.json"
+  plot_dir: "analytics/training_logs/plots"
+  refresh_seconds: 2
+
+leaderboard:
+  min_episodes: 3
+  sort_by: "success_rate"
+

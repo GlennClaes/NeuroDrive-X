@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>NeuroDrive X Dashboard</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">CARLA Autonomous Driving Lab</p>
+        <h1>NeuroDrive X</h1>
+      </div>
+      <div class="status-pill" id="healthStatus">Connecting</div>
+    </header>
+
+    <main>
+      <section class="metrics-grid" aria-label="Live metrics">
+        <article class="metric-card">
+          <span>Episode</span>
+          <strong id="episode">0</strong>
+        </article>
+        <article class="metric-card">
+          <span>Live Reward</span>
+          <strong id="reward">0.00</strong>
+        </article>
+        <article class="metric-card">
+          <span>Speed</span>
+          <strong><span id="speed">0.0</span> km/h</strong>
+        </article>
+        <article class="metric-card">
+          <span>Collisions</span>
+          <strong id="collisions">0</strong>
+        </article>
+        <article class="metric-card">
+          <span>Lane Invasions</span>
+          <strong id="laneInvasions">0</strong>
+        </article>
+        <article class="metric-card">
+          <span>Distance</span>
+          <strong><span id="distance">0.0</span> m</strong>
+        </article>
+        <article class="metric-card">
+          <span>Success Rate</span>
+          <strong><span id="successRate">0</span>%</strong>
+        </article>
+        <article class="metric-card">
+          <span>Avg Reward</span>
+          <strong id="averageReward">0.00</strong>
+        </article>
+      </section>
+
+      <section class="panel">
+        <div class="panel-header">
+          <h2>Training Curve</h2>
+          <span id="lastUpdated">Waiting for metrics</span>
+        </div>
+        <canvas id="rewardChart" width="1200" height="380"></canvas>
+      </section>
+
+      <section class="split">
+        <article class="panel">
+          <div class="panel-header">
+            <h2>Leaderboard</h2>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Model</th>
+                <th>Town</th>
+                <th>Weather</th>
+                <th>Success</th>
+                <th>Reward</th>
+              </tr>
+            </thead>
+            <tbody id="leaderboard"></tbody>
+          </table>
+        </article>
+        <article class="panel">
+          <div class="panel-header">
+            <h2>Generated Graphs</h2>
+          </div>
+          <div class="plot-list" id="plotList"></div>
+        </article>
+      </section>
+    </main>
+
+    <script>
+      window.NEURODRIVE_REFRESH_SECONDS = {{ refresh_seconds }};
+    </script>
+    <script src="/static/dashboard.js"></script>
+  </body>
+</html>
+

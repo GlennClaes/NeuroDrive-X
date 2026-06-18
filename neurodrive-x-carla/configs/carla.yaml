@@ -1,0 +1,149 @@
+server:
+  host: "localhost"
+  port: 2000
+  timeout_seconds: 20.0
+
+simulation:
+  default_town: "Town03"
+  town_sequence:
+    - "Town01"
+    - "Town03"
+    - "Town05"
+  synchronous_mode: true
+  fixed_delta_seconds: 0.05
+  no_rendering_mode: false
+  max_episode_steps: 1200
+  spawn_retry_count: 30
+  headless: false
+
+vehicle:
+  blueprint_filter: "vehicle.tesla.model3"
+  role_name: "hero"
+  autopilot: false
+  max_steer: 0.7
+  throttle: 0.55
+  brake: 0.85
+  keep_lane_throttle: 0.38
+  steer_increment: 0.18
+
+traffic:
+  enabled: true
+  vehicles: 35
+  pedestrians: 20
+  traffic_manager_port: 8000
+  global_distance_to_leading_vehicle: 2.8
+  speed_difference_percentage: 10.0
+  hybrid_physics_mode: true
+  hybrid_physics_radius: 70.0
+  percentage_pedestrians_running: 0.15
+  percentage_pedestrians_crossing: 0.35
+  multi_agent:
+    enabled: true
+    ignore_lights_percentage: 2.0
+    random_left_lane_change_percentage: 8.0
+    random_right_lane_change_percentage: 8.0
+    aggressive_speed_difference_percentage: -15.0
+
+sensors:
+  camera:
+    width: 320
+    height: 180
+    fov: 100
+    output_width: 84
+    output_height: 84
+    transform:
+      x: 1.5
+      y: 0.0
+      z: 2.4
+      pitch: -8.0
+      yaw: 0.0
+      roll: 0.0
+  semantic_camera:
+    width: 320
+    height: 180
+    fov: 100
+    transform:
+      x: 1.5
+      y: 0.0
+      z: 2.4
+      pitch: -8.0
+      yaw: 0.0
+      roll: 0.0
+  lidar:
+    channels: 32
+    range: 60.0
+    points_per_second: 56000
+    rotation_frequency: 20.0
+    upper_fov: 10.0
+    lower_fov: -30.0
+    sectors: 64
+    transform:
+      x: 0.0
+      y: 0.0
+      z: 2.5
+      pitch: 0.0
+      yaw: 0.0
+      roll: 0.0
+  collision: true
+  lane_invasion: true
+  gnss: true
+  imu: true
+
+perception:
+  object_detection:
+    backend: "ultralytics"
+    model_path: "yolo11n.pt"
+    confidence_threshold: 0.35
+    image_size: 640
+    device: "auto"
+    enabled_classes:
+      - "person"
+      - "bicycle"
+      - "car"
+      - "motorcycle"
+      - "bus"
+      - "truck"
+      - "traffic light"
+      - "stop sign"
+  bird_eye_view:
+    enabled: true
+    size: 128
+    meters: 60.0
+    include_route: true
+    include_lanes: true
+
+route_planning:
+  algorithm: "astar"
+  waypoint_distance: 2.0
+  route_length_meters: 900.0
+  target_reach_distance: 5.0
+  offroad_max_distance: 5.0
+  wrong_way_angle_degrees: 105.0
+  astar:
+    max_expansions: 3000
+    lane_change_penalty: 4.0
+    road_option_penalty: 1.0
+
+weather:
+  default: "ClearNoon"
+  presets:
+    - "ClearNoon"
+    - "WetCloudyNoon"
+    - "HardRainNoon"
+    - "ClearNight"
+    - "WetNight"
+    - "SoftRainSunset"
+  night_mode: false
+  rain_mode: false
+
+safety:
+  emergency_braking: true
+  front_obstacle_distance_m: 8.0
+  red_light_stop_distance_m: 12.0
+  minimum_moving_speed_kmh: 1.0
+
+debug:
+  bird_eye_view: true
+  draw_route: true
+  replay_logging: true
+  replay_dir: "analytics/training_logs/replays"

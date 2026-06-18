@@ -1,0 +1,45 @@
+services:
+  dashboard:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: neurodrive-x-dashboard
+    working_dir: /app
+    command: python dashboard/app.py --host 0.0.0.0 --port 8080
+    ports:
+      - "8080:8080"
+    environment:
+      CARLA_HOST: ${CARLA_HOST:-host.docker.internal}
+      CARLA_PORT: ${CARLA_PORT:-2000}
+      PYTHONPATH: /app
+    volumes:
+      - ../analytics/training_logs:/app/analytics/training_logs
+
+  training:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: neurodrive-x-training
+    working_dir: /app
+    command: python ai/train.py --headless
+    environment:
+      CARLA_HOST: ${CARLA_HOST:-host.docker.internal}
+      CARLA_PORT: ${CARLA_PORT:-2000}
+      PYTHONPATH: /app
+    volumes:
+      - ../analytics/training_logs:/app/analytics/training_logs
+      - ../ai/models:/app/ai/models
+    profiles:
+      - training
+
+  carla:
+    image: carlasim/carla:0.9.15
+    container_name: neurodrive-x-carla-server
+    command: /bin/bash CarlaUE4.sh -RenderOffScreen -quality-level=Low -carla-rpc-port=2000
+    ports:
+      - "2000-2002:2000-2002"
+    environment:
+      SDL_VIDEODRIVER: offscreen
+    profiles:
+      - simulator
+

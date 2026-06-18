@@ -1,0 +1,59 @@
+seed: 42
+total_timesteps: 250000
+device: "auto"
+
+algorithm:
+  name: "PPO"
+  policy: "MultiInputPolicy"
+  feature_extractor: "NeuroDriveCNN"
+  features_dim: 384
+  learning_rate: 0.0003
+  n_steps: 1024
+  batch_size: 128
+  n_epochs: 8
+  gamma: 0.99
+  gae_lambda: 0.95
+  clip_range: 0.2
+  ent_coef: 0.01
+  vf_coef: 0.5
+  max_grad_norm: 0.5
+
+environment:
+  action_repeat: 2
+  randomize_town: true
+  randomize_weather: true
+  headless: false
+  replay_logging: true
+
+reward:
+  forward_velocity_weight: 0.12
+  lane_centering_weight: 0.9
+  waypoint_reward: 12.0
+  safe_distance_weight: 0.45
+  red_light_stop_reward: 3.0
+  smooth_driving_weight: 0.35
+  collision_penalty: -100.0
+  offroad_penalty: -35.0
+  lane_invasion_penalty: -8.0
+  red_light_penalty: -45.0
+  wrong_way_penalty: -50.0
+  hard_steering_penalty: -4.0
+  idle_penalty: -2.5
+  time_penalty: -0.02
+  success_reward: 80.0
+
+logging:
+  log_dir: "analytics/training_logs"
+  tensorboard_dir: "analytics/training_logs/tensorboard"
+  metrics_jsonl: "analytics/training_logs/metrics.jsonl"
+  metrics_csv: "analytics/training_logs/metrics.csv"
+  dashboard_state: "analytics/training_logs/dashboard_state.json"
+  model_dir: "ai/models"
+  checkpoint_frequency_steps: 25000
+  plot_frequency_episodes: 10
+
+evaluation:
+  episodes: 5
+  deterministic: true
+  model_path: "ai/models/ppo_neurodrive_x.zip"
+  report_path: "analytics/training_logs/evaluation_report.json"
